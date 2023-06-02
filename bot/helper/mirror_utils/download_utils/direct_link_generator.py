@@ -130,34 +130,21 @@ def rock(url: str) -> str:
         return r.json()['url']
     except: return "Something went wrong :("
     
-def megaup(url):
-    parsed_url = urlparse(url)
-    if parsed_url.netloc != 'megaup.net':
-        return False  # No es un enlace de megaup.net
     
-    query_params = parsed_url.query
-    direct_link = url.split('?')[0]  # Obtener solo la parte del enlace directo sin los parámetros
-    final_url = direct_link + query_params
-    
-    response = requests.head(final_url)
-    size = int(response.headers.get('Content-Length', 0))
-    
-    if size < 1024 * 1024:  # 1 MB
-        return False  # No descargamos el archivo si el tamaño es menor a 1 MB
-    
-    response = requests.get(final_url, stream=True)
-    file_name = response.headers.get('Content-Disposition')
-    if file_name:
-        file_name = file_name.split('filename=')[1].strip('\"')
-    else:
-        file_name = parsed_url.path.split('/')[-1]
-    
-    with open(file_name, 'wb') as file:
-        for chunk in response.iter_content(chunk_size=1024):
-            if chunk:
-                file.write(chunk)
-    
-    return True  # Descarga exitosa del archivo
+def megaup(url: str, file_name: str) -> bool:
+    for _ in range(2):  # Intenta descargar el archivo dos veces
+        response = requests.get(url, stream=True)
+        if response.status_code == 200:
+            file_size = 0
+            with open(file_name, 'wb') as file:
+                for chunk in response.iter_content(1024):
+                    file.write(chunk)
+                    file_size += len(chunk)
+            if file_size < 1024 * 1024:
+                continue  # Realiza un segundo intento si el archivo es demasiado pequeño
+            return True
+    return False
+  
 
 def try2link(url):
     client = create_scraper()
