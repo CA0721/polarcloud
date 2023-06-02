@@ -14,13 +14,14 @@ from lxml import etree
 from cfscrape import create_scraper
 from bs4 import BeautifulSoup
 from base64 import standard_b64encode, b64decode
+from playwright.sync_api import Playwright, sync_playwright, expect
 
 from bot import LOGGER, config_dict
 from bot.helper.telegram_helper.bot_commands import BotCommands
 from bot.helper.ext_utils.bot_utils import is_gdtot_link, is_udrive_link, is_sharer_link, is_sharedrive_link, is_filepress_link, is_unified_link
 from bot.helper.ext_utils.exceptions import DirectDownloadLinkException
 
-fmed_list = ['fembed.net', 'fembed.com', 'femax20.com', 'fcdn.stream', 'feurl.com', 'layarkacaxxi.icu',
+fmed_list = ['fembed.net', 'fembed.com', 'vanfem.com', 'femax20.com', 'fcdn.stream', 'feurl.com', 'layarkacaxxi.icu',
              'naniplay.nanime.in', 'naniplay.nanime.biz', 'naniplay.com', 'mm9842.com']
 
 
@@ -96,6 +97,8 @@ def direct_link_generator(link: str):
         return filepress(link)
     elif is_unified_link(link):
         return unified(link)
+    elif any(x in link for x in ['wetransfer.com', 'we.tl']):
+        return wetransfer(link)
     elif any(x in link for x in fmed_list):
         return fembed(link)
     elif any(x in link for x in ['sbembed.com', 'watchsb.com', 'streamsb.net', 'sbplay.org']):
@@ -124,6 +127,35 @@ def rock(url: str) -> str:
     try:
         return r.json()['url']
     except: return "Something went wrong :("
+    
+def megaup(url):
+    parsed_url = urlparse(url)
+    if parsed_url.netloc != 'megaup.net':
+        return False  # No es un enlace de megaup.net
+    
+    query_params = parsed_url.query
+    direct_link = url.split('?')[0]  # Obtener solo la parte del enlace directo sin los parámetros
+    final_url = direct_link + query_params
+    
+    response = requests.head(final_url)
+    size = int(response.headers.get('Content-Length', 0))
+    
+    if size < 1024 * 1024:  # 1 MB
+        return False  # No descargamos el archivo si el tamaño es menor a 1 MB
+    
+    response = requests.get(final_url, stream=True)
+    file_name = response.headers.get('Content-Disposition')
+    if file_name:
+        file_name = file_name.split('filename=')[1].strip('\"')
+    else:
+        file_name = parsed_url.path.split('/')[-1]
+    
+    with open(file_name, 'wb') as file:
+        for chunk in response.iter_content(chunk_size=1024):
+            if chunk:
+                file.write(chunk)
+    
+    return True  # Descarga exitosa del archivo
 
 def try2link(url):
     client = create_scraper()
@@ -246,6 +278,26 @@ def zippy_share(url: str) -> str:
     return dl_url
 
 
+def wetransfer(url):
+    rget = create_scraper().request
+    try:
+        url = rget('get', url).url
+        json_data = {
+            'security_hash': url.split('/')[-1],
+            'intent': 'entire_transfer'
+            }
+        res = rget('POST', f'https://wetransfer.com/api/v4/transfers/{url.split("/")[-2]}/download', json=json_data).json()
+    except IndexError:
+        raise DirectDownloadLinkException(f'ERROR: {e.__class__.__name__}')
+    if "direct_link" in res:
+        return res["direct_link"]
+    elif "message" in res:
+        raise DirectDownloadLinkException(f"ERROR: {res['message']}")
+    elif "error" in res:
+        raise DirectDownloadLinkException(f"ERROR: {res['error']}")
+    else:
+        raise DirectDownloadLinkException("ERROR: cannot find direct link")
+
 def yandex_disk(url: str) -> str:
     """ Yandex.Disk direct link generator
     Based on https://github.com/wldhx/yadisk-direct """
@@ -315,6 +367,7 @@ def mediafire(url: str) -> str:
     if not (link := re_findall(r"\'(https?:\/\/download\d+\.mediafire\.com\/\S+\/\S+\/\S+)\'", page)):
         raise DirectDownloadLinkException("ERROR: No links found in this page")
     return link[0]
+
 
 
 def osdn(url: str) -> str:
@@ -765,6 +818,39 @@ def shareDrive(url, directLogin=True):
                 "ERROR! File Not Found or User rate exceeded !!")
 
 
+def prun(playwright: Playwright, link: str) -> str:
+    """ filepress google drive link generator
+    By https://t.me/maverick9099
+    GitHub: https://github.com/majnurangeela"""
+
+    browser = playwright.chromium.launch()
+    context = browser.new_context()
+
+    page = context.new_page()
+    page.goto(link)
+
+    firstbtn = page.locator(
+        "xpath=//div[text()='Direct Download']/parent::button")
+    expect(firstbtn).to_be_visible()
+    firstbtn.click()
+    sleep(6)
+
+    secondBtn = page.get_by_role("button", name="Download Now")
+    expect(secondBtn).to_be_visible()
+    with page.expect_navigation():
+        secondBtn.click()
+
+    Flink = page.url
+
+    context.close()
+    browser.close()
+
+    if 'drive.google.com' in Flink:
+        return Flink
+    else:
+        raise DirectDownloadLinkException("Unable To Get Google Drive Link!")
+
+
 def unified(link) -> str:
     try:
         cget = cloudscraper.create_scraper().request
@@ -804,7 +890,7 @@ def unified(link) -> str:
     else:
         raise DirectDownloadLinkException('ERROR: Drive Link not found')
 
-
+        
 def filepress(link: str) -> str:
     cget = cloudscraper.create_scraper().request
     try:
@@ -821,7 +907,7 @@ def filepress(link: str) -> str:
     except Exception as e:
         raise DirectDownloadLinkException(f'ERROR: {e.__class__.__name__}')
 
-       
+
 def terabox(url) -> str:
     if not ospath.isfile('terabox.txt'):
         raise DirectDownloadLinkException("ERROR: terabox.txt not found")
