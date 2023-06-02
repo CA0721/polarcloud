@@ -1,5 +1,7 @@
 import requests
 import cloudscraper
+import os
+
 
 from os import path as ospath
 from math import pow, floor
