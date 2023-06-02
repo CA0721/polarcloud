@@ -131,11 +131,13 @@ def rock(url: str) -> str:
     except: return "Something went wrong :("
     
     
-def megaup(url: str, file_name: str) -> bool:
+def megaup(url: str) -> bool:
     for _ in range(2):  # Intenta descargar el archivo dos veces
         response = requests.get(url, stream=True)
         if response.status_code == 200:
             file_size = 0
+            parsed_url = urlparse(url)
+            file_name = os.path.basename(parsed_url.path)
             with open(file_name, 'wb') as file:
                 for chunk in response.iter_content(1024):
                     file.write(chunk)
