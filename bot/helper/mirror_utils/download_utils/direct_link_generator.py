@@ -1,5 +1,6 @@
 import requests
 import cloudscraper
+import megaup_api
 
 from os import path as ospath
 from math import pow, floor
