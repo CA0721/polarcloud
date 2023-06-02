@@ -1,6 +1,5 @@
 import requests
 import cloudscraper
-import megaup_api
 
 from os import path as ospath
 from math import pow, floor
@@ -42,6 +41,8 @@ def direct_link_generator(link: str):
             f"ERROR: Use /{BotCommands.WatchCommand} to mirror Youtube link\nUse /{BotCommands.ZipWatchCommand} to make zip of Youtube playlist")
     elif 'zippyshare.com' in link:
         return zippy_share(link)
+    elif 'megaup.net' in link:
+        return megaup(link)
     elif 'yadi.sk' in link or 'disk.yandex.com' in link:
         return yandex_disk(link)
     elif 'mediafire.com' in link:
