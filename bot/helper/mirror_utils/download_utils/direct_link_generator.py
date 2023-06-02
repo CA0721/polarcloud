@@ -43,8 +43,6 @@ def direct_link_generator(link: str):
             f"ERROR: Use /{BotCommands.WatchCommand} to mirror Youtube link\nUse /{BotCommands.ZipWatchCommand} to make zip of Youtube playlist")
     elif 'zippyshare.com' in link:
         return zippy_share(link)
-    elif 'megaup.net' in link:
-        return megaup(link)
     elif 'yadi.sk' in link or 'disk.yandex.com' in link:
         return yandex_disk(link)
     elif 'mediafire.com' in link:
@@ -133,23 +131,6 @@ def rock(url: str) -> str:
     except: return "Something went wrong :("
     
     
-def megaup(url: str) -> bool:
-    for _ in range(2):  # Intenta descargar el archivo dos veces
-        response = requests.get(url, stream=True)
-        if response.status_code == 200:
-            file_size = 0
-            parsed_url = urlparse(url)
-            file_name = os.path.basename(parsed_url.path)
-            with open(file_name, 'wb') as file:
-                for chunk in response.iter_content(1024):
-                    file.write(chunk)
-                    file_size += len(chunk)
-            if file_size < 1024 * 1024:
-                continue  # Realiza un segundo intento si el archivo es demasiado pequeño
-            return True
-    return False
-  
-
 def try2link(url):
     client = create_scraper()
     url = url[:-1] if url[-1] == '/' else url
